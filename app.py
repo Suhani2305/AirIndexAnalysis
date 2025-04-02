@@ -1,37 +1,4 @@
-"""
-✅ COMPLETED TASKS:
-1. Data Cleaning & Preprocessing:
-   - DateTime conversion
-   - AQI calculation
-   - Data structuring
-
-2. Visualizations:
-   - Line charts for pollution trends
-   - Scatter plots for temperature vs AQI
-   - Pie charts for pollutant distributions
-   - Correlation heatmaps
-   - Distribution plots
-
-3. EDA & Statistical Analysis:
-   - Time-based analysis
-   - Correlation analysis
-   - Distribution analysis
-   - Daily patterns
-
-❌ PENDING TASKS:
-1. Machine Learning:
-   - Implement prediction models
-   - Add anomaly detection
-   
-2. Additional Analysis:
-   - Seasonal trends
-   - Advanced statistical tests
-   - Outlier detection and handling
-
-3. Documentation:
-   - Add detailed methodology
-   - Include statistical summaries
-"""
+ 
 
 import streamlit as st
 import pandas as pd
