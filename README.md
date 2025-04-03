@@ -1,7 +1,7 @@
 # 🌍 Air Quality Analysis Dashboard
 
 <div align="center">
-  <img src="https://via.placeholder.com/200x200?text=Air+Quality+Logo" alt="Air Quality Dashboard Logo" width="200"/>
+  <!-- <img src="https://via.placeholder.com/200x200?text=Air+Quality+Logo" alt="Air Quality Dashboard Logo" width="200"/> -->
   
   [![Python](https://img.shields.io/badge/Python-3.12%2B-blue)](https://www.python.org/downloads/)
   [![Streamlit](https://img.shields.io/badge/Streamlit-1.22.0-red)](https://streamlit.io/)
@@ -15,7 +15,8 @@
 A comprehensive air quality analysis dashboard leveraging machine learning and advanced statistical analysis to monitor, predict, and analyze air quality patterns. This system helps authorities and researchers make data-driven decisions to improve air quality and public health.
 
 <div align="center">
-  <img src="https://via.placeholder.com/800x400?text=Air+Quality+Dashboard" alt="Dashboard Preview" width="800"/>
+  <img src="AirIndex1.png" alt="Dashboard Overview" width="800"/>
+  <img src="AirIndex2.png" alt="Dashboard Analysis" width="800"/>
 </div>
 
 ## 🎯 Project Objectives
@@ -115,9 +116,51 @@ A comprehensive air quality analysis dashboard leveraging machine learning and a
 
 ## 📊 System Architecture
 
-<div align="center">
-  <img src="https://via.placeholder.com/800x400?text=System+Architecture" alt="System Architecture" width="800"/>
-</div>
+```mermaid
+graph TD
+    subgraph Data Sources
+        A[CSV Data] --> B[Data Processing Layer]
+        C[Real-time Input] --> B
+    end
+
+    subgraph Data Processing Layer
+        B --> D[Data Cleaning]
+        D --> E[Feature Engineering]
+        E --> F[Data Normalization]
+    end
+
+    subgraph ML Models
+        F --> G[Random Forest Model]
+        F --> H[Prophet Model]
+        G --> I[Predictions]
+        H --> I
+    end
+
+    subgraph Visualization Layer
+        I --> J[Streamlit Dashboard]
+        F --> J
+    end
+
+    subgraph Dashboard Components
+        J --> K[Overview Tab]
+        J --> L[ML Predictions Tab]
+        J --> M[Forecasting Tab]
+        J --> N[Health Impact Tab]
+        J --> O[Weather Correlation Tab]
+        J --> P[Advanced Analysis Tab]
+        J --> Q[Raw Data Tab]
+    end
+
+    subgraph Output
+        K --> R[Real-time Metrics]
+        L --> S[ML Predictions]
+        M --> T[Forecasts]
+        N --> U[Health Risks]
+        O --> V[Weather Impact]
+        P --> W[Statistical Analysis]
+        Q --> X[Data Exploration]
+    end
+```
 
 ## 🚀 Getting Started
 
