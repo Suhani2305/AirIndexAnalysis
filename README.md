@@ -275,6 +275,22 @@ AirIndexAnalysis/
 - Memory management
 - Query optimization
 
+### 📊 Available Reports 
+
+1. **CSV Export**
+   - Raw data with all measurements
+   - Filtered data based on selection
+
+2. **PDF Reports**
+   - Overview Statistics
+   - Pollutant Trends
+   - Temperature Impact Analysis
+   - Statistical Analysis
+   - Correlation Analysis
+   - Daily Patterns
+   - ML Model Performance (if available)
+
+
 ## 📈 Future Roadmap
 
 - [ ] Real-time API integration

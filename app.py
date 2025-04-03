@@ -1,11 +1,9 @@
- 
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 from ml_models import AirQualityModel, perform_advanced_analysis
 import plotly.graph_objects as go
@@ -13,6 +11,232 @@ from plotly.subplots import make_subplots
 import base64
 from io import BytesIO
 from prophet import Prophet
+import joblib
+import folium
+from streamlit_folium import folium_static
+from sklearn.metrics import mean_squared_error, r2_score
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+import tempfile
+import os
+
+def generate_analysis_pdf(filtered_df):
+    """Generate a PDF report of the analysis"""
+    # Create a BytesIO buffer to store the PDF
+    buffer = BytesIO()
+    
+    # Create the PDF document
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elements = []
+    
+    # Add title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=30
+    )
+    elements.append(Paragraph("Air Quality Analysis Report", title_style))
+    elements.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+    elements.append(Spacer(1, 20))
+    
+    # Add Overview Section
+    elements.append(Paragraph("1. Overview", styles['Heading2']))
+    overview_data = [
+        ["Total Records", str(len(filtered_df))],
+        ["Date Range", f"{filtered_df['DateTime'].min().strftime('%Y-%m-%d')} to {filtered_df['DateTime'].max().strftime('%Y-%m-%d')}"],
+        ["Average AQI", f"{filtered_df['AQI'].mean():.2f}"],
+        ["Highest AQI", f"{filtered_df['AQI'].max():.2f}"],
+        ["Lowest AQI", f"{filtered_df['AQI'].min():.2f}"]
+    ]
+    overview_table = Table(overview_data, colWidths=[2*inch, 3*inch])
+    overview_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 12),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    elements.append(overview_table)
+    elements.append(Spacer(1, 20))
+    
+    # Add Pollutant Trends Graph
+    elements.append(Paragraph("2. Pollutant Trends", styles['Heading2']))
+    plt.figure(figsize=(10, 6))
+    for pollutant in ['CO(GT)', 'NOx(GT)', 'NO2(GT)']:
+        plt.plot(filtered_df['DateTime'], filtered_df[pollutant], label=pollutant)
+    plt.title('Pollutant Levels Over Time')
+    plt.xlabel('Time')
+    plt.ylabel('Pollutant Level')
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    # Save the plot to a temporary buffer
+    img_buffer = BytesIO()
+    plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+    img_buffer.seek(0)
+    img = Image(img_buffer)
+    img.drawHeight = 4*inch
+    img.drawWidth = 6*inch
+    elements.append(img)
+    plt.close()
+    elements.append(Spacer(1, 20))
+    
+    # Add Temperature vs AQI Scatter Plot
+    elements.append(Paragraph("3. Temperature vs Air Quality", styles['Heading2']))
+    plt.figure(figsize=(10, 6))
+    plt.scatter(filtered_df['T'], filtered_df['AQI'], alpha=0.5, c=filtered_df['RH'], cmap='viridis')
+    plt.colorbar(label='Relative Humidity (%)')
+    plt.title('Temperature vs AQI (Color: Relative Humidity)')
+    plt.xlabel('Temperature (°C)')
+    plt.ylabel('Air Quality Index')
+    plt.tight_layout()
+    
+    img_buffer = BytesIO()
+    plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+    img_buffer.seek(0)
+    img = Image(img_buffer)
+    img.drawHeight = 4*inch
+    img.drawWidth = 6*inch
+    elements.append(img)
+    plt.close()
+    elements.append(Spacer(1, 20))
+    
+    # Add Statistical Analysis Section
+    elements.append(Paragraph("4. Statistical Analysis", styles['Heading2']))
+    stats_data = [
+        ["Metric", "Value"],
+        ["Mean AQI", f"{filtered_df['AQI'].mean():.2f}"],
+        ["Median AQI", f"{filtered_df['AQI'].median():.2f}"],
+        ["Standard Deviation", f"{filtered_df['AQI'].std():.2f}"],
+        ["Variance", f"{filtered_df['AQI'].var():.2f}"],
+        ["Skewness", f"{filtered_df['AQI'].skew():.2f}"],
+        ["Kurtosis", f"{filtered_df['AQI'].kurtosis():.2f}"]
+    ]
+    stats_table = Table(stats_data, colWidths=[2*inch, 3*inch])
+    stats_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 12),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    elements.append(stats_table)
+    elements.append(Spacer(1, 20))
+    
+    # Add Correlation Heatmap
+    elements.append(Paragraph("5. Correlation Analysis", styles['Heading2']))
+    plt.figure(figsize=(10, 8))
+    corr_data = filtered_df[['AQI', 'CO(GT)', 'NOx(GT)', 'NO2(GT)', 'T', 'RH']].corr()
+    sns.heatmap(corr_data, annot=True, cmap='coolwarm', center=0)
+    plt.title('Correlation Matrix of Air Quality Parameters')
+    plt.tight_layout()
+    
+    img_buffer = BytesIO()
+    plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+    img_buffer.seek(0)
+    img = Image(img_buffer)
+    img.drawHeight = 5*inch
+    img.drawWidth = 6*inch
+    elements.append(img)
+    plt.close()
+    elements.append(Spacer(1, 20))
+    
+    # Add Daily Patterns
+    elements.append(Paragraph("6. Daily Patterns", styles['Heading2']))
+    hourly_avg = filtered_df.groupby('Hour')[['AQI', 'CO(GT)', 'NOx(GT)', 'NO2(GT)']].mean()
+    plt.figure(figsize=(10, 6))
+    for col in hourly_avg.columns:
+        plt.plot(hourly_avg.index, hourly_avg[col], label=col)
+    plt.title('Average Daily Patterns')
+    plt.xlabel('Hour of Day')
+    plt.ylabel('Average Level')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    
+    img_buffer = BytesIO()
+    plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+    img_buffer.seek(0)
+    img = Image(img_buffer)
+    img.drawHeight = 4*inch
+    img.drawWidth = 6*inch
+    elements.append(img)
+    plt.close()
+    elements.append(Spacer(1, 20))
+    
+    # Add ML Model Performance Section if available
+    if 'ml_results' in st.session_state:
+        elements.append(Paragraph("7. Machine Learning Model Performance", styles['Heading2']))
+        ml_data = [
+            ["Metric", "Value"],
+            ["R² Score", f"{st.session_state.ml_results['r2']:.4f}"],
+            ["MSE", f"{st.session_state.ml_results['mse']:.4f}"],
+            ["Anomaly Ratio", f"{st.session_state.ml_results['anomaly_ratio']:.2%}"]
+        ]
+        ml_table = Table(ml_data, colWidths=[2*inch, 3*inch])
+        ml_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(ml_table)
+        
+        # Add ML predictions plot
+        plt.figure(figsize=(10, 6))
+        plt.scatter(st.session_state.ml_results['test_actual'], 
+                   st.session_state.ml_results['test_predictions'],
+                   alpha=0.5)
+        plt.plot([filtered_df['AQI'].min(), filtered_df['AQI'].max()],
+                [filtered_df['AQI'].min(), filtered_df['AQI'].max()],
+                'r--', label='Perfect Prediction')
+        plt.xlabel('Actual AQI Values')
+        plt.ylabel('Model Predicted AQI Values')
+        plt.title('Model Predictions vs Actual Values')
+        plt.legend()
+        plt.tight_layout()
+        
+        img_buffer = BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+        img_buffer.seek(0)
+        img = Image(img_buffer)
+        img.drawHeight = 4*inch
+        img.drawWidth = 6*inch
+        elements.append(img)
+        plt.close()
+    
+    # Build the PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
 # Configure plotly to remove the logo and add download options
 config = {
@@ -61,6 +285,18 @@ def load_data():
 # Load data first
 df = load_data()
 
+# Initialize default date range
+min_date = df['DateTime'].min().date()
+max_date = df['DateTime'].max().date()
+if 'start_date' not in st.session_state:
+    st.session_state.start_date = min_date
+if 'end_date' not in st.session_state:
+    st.session_state.end_date = max_date
+
+# Filter data based on date range
+mask = (df['DateTime'].dt.date >= st.session_state.start_date) & (df['DateTime'].dt.date <= st.session_state.end_date)
+filtered_df = df[mask]
+
 # Theme toggle and settings in sidebar
 with st.sidebar:
     st.title("Dashboard Settings")
@@ -71,6 +307,37 @@ with st.sidebar:
         ["Dark", "Light"],
         help="Select dashboard theme"
     )
+    
+    # Add PDF download section here
+    st.markdown("---")
+    st.subheader("📥 Download Options")
+    
+    # CSV Download
+    st.write("📊 Download Data as CSV")
+    def get_csv_download_link(df):
+        csv = df.to_csv(index=False)
+        b64 = base64.b64encode(csv.encode()).decode()
+        href = f'<a href="data:file/csv;base64,{b64}" download="air_quality_data.csv" class="download-button">Download CSV File</a>'
+        return href
+    
+    st.markdown(get_csv_download_link(df), unsafe_allow_html=True)
+    
+    # PDF Report Download
+    st.write("📑 Download Analysis Report")
+    if st.button("Generate PDF Report", key="gen_pdf"):
+        with st.spinner("Generating PDF report..."):
+            try:
+                pdf_buffer = generate_analysis_pdf(filtered_df)
+                st.success("PDF Generated Successfully!")
+                st.download_button(
+                    label="📥 Download PDF Report",
+                    data=pdf_buffer,
+                    file_name=f"air_quality_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    key="pdf_download"
+                )
+            except Exception as e:
+                st.error(f"Error generating PDF: {str(e)}")
     
     # Apply theme
     if theme == "Light":
@@ -146,6 +413,24 @@ with st.sidebar:
             ::-webkit-scrollbar-thumb:hover {
                 background: #4E6D89;
             }
+            
+            /* Style download buttons */
+            .download-button {
+                display: inline-block;
+                padding: 8px 16px;
+                background-color: #4CAF50;
+                color: white !important;
+                text-align: center;
+                text-decoration: none;
+                font-size: 16px;
+                border-radius: 4px;
+                margin: 4px 2px;
+                cursor: pointer;
+                width: 100%;
+            }
+            .download-button:hover {
+                background-color: #45a049;
+            }
             </style>
         """, unsafe_allow_html=True)
     
@@ -154,11 +439,16 @@ with st.sidebar:
     
     # Date range selector
     st.write("Select Date Range")
-    min_date = df['DateTime'].min().date()
-    max_date = df['DateTime'].max().date()
     
-    start_date = st.date_input('Start Date', min_date, min_value=min_date, max_value=max_date)
-    end_date = st.date_input('End Date', max_date, min_value=min_date, max_value=max_date)
+    start_date = st.date_input('Start Date', st.session_state.start_date, min_value=min_date, max_value=max_date)
+    end_date = st.date_input('End Date', st.session_state.end_date, min_value=min_date, max_value=max_date)
+    
+    # Update session state and filtered data if dates change
+    if start_date != st.session_state.start_date or end_date != st.session_state.end_date:
+        st.session_state.start_date = start_date
+        st.session_state.end_date = end_date
+        mask = (df['DateTime'].dt.date >= start_date) & (df['DateTime'].dt.date <= end_date)
+        filtered_df = df[mask]
     
     # Pollutant selection
     st.write("Select Pollutants to Display")
@@ -176,17 +466,6 @@ with st.sidebar:
             df['Location'].unique(),
             help="Choose the monitoring station location"
         )
-    
-    # Download options
-    st.subheader("Download Options")
-    
-    def get_csv_download_link(df):
-        csv = df.to_csv(index=False)
-        b64 = base64.b64encode(csv.encode()).decode()
-        href = f'<a href="data:file/csv;base64,{b64}" download="air_quality_data.csv">Download CSV File</a>'
-        return href
-    
-    st.markdown(get_csv_download_link(df), unsafe_allow_html=True)
     
     # Add tooltips
     st.markdown("""
